@@ -201,6 +201,41 @@
             font-family: monospace;
         }
 
+        /* Tutor / Assistant Box */
+        .tutor-box {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            background: rgba(10, 20, 30, 0.9);
+            border-left: 4px solid var(--accent);
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            font-size: 0.9rem;
+            line-height: 1.4;
+            color: #ccc;
+            pointer-events: none;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .tutor-title {
+            color: var(--accent);
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tutor-highlight {
+            color: white;
+            font-weight: 600;
+        }
+
         /* Tooltip overlay */
         #tooltip {
             position: absolute;
@@ -235,6 +270,12 @@
             <div class="legend-item">
                 <div class="dot" style="background: var(--secondary)"></div> Corrente (I)
             </div>
+        </div>
+
+        <!-- Tutor Panel -->
+        <div class="tutor-box" id="tutorPanel">
+            <div class="tutor-title">💡 Tutor Virtual</div>
+            <div id="tutorText">Inicializando motor físico...</div>
         </div>
 
         <!-- O Canvas cobre toda a área -->
@@ -399,6 +440,7 @@
         const elValG = document.getElementById('valG');
         const elValZL = document.getElementById('valZL');
         const elDispZ0 = document.getElementById('dispZ0');
+        const elTutor = document.getElementById('tutorText');
 
         // Estado de UI
         let width, height;
@@ -411,6 +453,27 @@
         }
         window.addEventListener('resize', resize);
         resize();
+
+        // Tutor Logic
+        function updateTutor() {
+            let msg = "";
+
+            // Análise da Carga
+            if (engine.loadType === 2) {
+                msg += "<strong>Circuito Aberto (Z = ∞):</strong><br>A corrente não pode sair, então reflete invertida (-1). A Tensão dobra e reflete em fase (+1).";
+            } else if (engine.loadType === 0) {
+                msg += "<strong>Curto-Circuito (Z = 0):</strong><br>A tensão é forçada a zero. Ela inverte o sinal (-1) e reflete. A Corrente dobra (+1).";
+            } else if (engine.loadType === 1) {
+                msg += "<strong>Linha Casada (Z = Z0):</strong><br>A carga absorve toda a energia. Coeficiente de reflexão Γ = 0. Nada retorna.";
+            }
+
+            // Análise de Perdas
+            if (engine.R > 2.0 || engine.G > 0.01) {
+                msg += "<br><br><span style='color:#ffaa00'>⚠️ Alta Perda:</span> A onda vai atenuar rapidamente (diminuir amplitude) e dispersar (alargar) enquanto viaja.";
+            }
+
+            elTutor.innerHTML = msg;
+        }
 
         // Loop de Animação
         function loop() {
@@ -491,12 +554,14 @@
             engine.R = parseFloat(e.target.value);
             elValR.innerText = engine.R.toFixed(2);
             engine.updateDerivedParams();
+            updateTutor();
         });
 
         document.getElementById('sldG').addEventListener('input', (e) => {
             engine.G = parseFloat(e.target.value);
             elValG.innerText = engine.G.toFixed(3);
             engine.updateDerivedParams();
+            updateTutor();
         });
 
         document.getElementById('sldZL').addEventListener('input', (e) => {
@@ -512,10 +577,13 @@
             if (val === 0) elValZL.innerText = "Curto-Circuito";
             if (val === 1) elValZL.innerText = "Casada (Z0)";
             if (val === 2) elValZL.innerText = "Circuito Aberto";
+
+            updateTutor();
         });
 
         // Update UI inicial
         elDispZ0.innerText = engine.Z0.toFixed(1);
+        updateTutor();
 
         // Inicia loop
         loop();
