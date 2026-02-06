@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador LT - FDTD Interativo</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --panel-bg: rgba(20, 20, 30, 0.8);
+            --text: #e0e0e0;
+            --accent: #00f3ff;
+            --secondary: #ff00ff;
+            --grid: #1f2937;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--grid);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 10;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            color: var(--accent);
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #aaa;
+            margin-left: 10px;
+        }
+
+        main {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 60px;
+            /* Aumentado para evitar corte na parte inferior */
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            display: flex;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            width: 80%;
+            max-width: 900px;
+            flex-wrap: wrap;
+            justify-content: center;
+            z-index: 20;
+            /* Garantir que fique sobre o canvas */
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 140px;
+        }
+
+        label {
+            font-size: 0.75rem;
+            color: #888;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            margin-top: -5px;
+            box-shadow: 0 0 10px var(--accent);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #333;
+            border-radius: 2px;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-size: 0.8rem;
+            height: 36px;
+            margin-top: auto;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn.active {
+            background: var(--accent);
+            color: black;
+            border-color: var(--accent);
+        }
+
+        .btn-pulse {
+            background: var(--secondary);
+            border-color: var(--secondary);
+        }
+
+        .btn-pulse:hover {
+            filter: brightness(1.2);
+        }
+
+        .btn-pulse:active {
+            transform: scale(0.95);
+        }
+
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            pointer-events: none;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .value-display {
+            color: white;
+            font-family: monospace;
+        }
+
+        /* Tooltip overlay */
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            padding: 5px 10px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+            font-size: 0.8rem;
+            z-index: 100;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div>
+            <h1>Simulador LT <span class="badge">FDTD REAL-TIME</span></h1>
+        </div>
+        <div style="font-size: 0.8rem; color: #666;">
+            Motor de Física: David K. Cheng
+        </div>
+    </header>
+
+    <main>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="dot" style="background: var(--accent)"></div> Tensão (V)
+            </div>
+            <div class="legend-item">
+                <div class="dot" style="background: var(--secondary)"></div> Corrente (I)
+            </div>
+        </div>
+
+        <!-- O Canvas cobre toda a área -->
+        <canvas id="scope"></canvas>
+
+        <div id="tooltip"></div>
+
+        <div class="controls">
+            <div class="control-group">
+                <button class="btn btn-pulse" id="btnPulse">⚡ INJETAR PULSO</button>
+                <button class="btn" id="btnReset">Resetar Linha</button>
+            </div>
+
+            <div class="control-group">
+                <label>Carga (ZL) <span id="valZL" class="value-display">Aberto</span></label>
+                <input type="range" id="sldZL" min="0" max="3" step="1" value="2">
+                <!-- 0: Curto, 1: Casado, 2: Aberto, 3: Reativo (Exemplo) -->
+                <div style="display:flex; justify-content:space-between; font-size: 0.6rem; color: #555;">
+                    <span>Curto</span><span>Z0</span><span>Aberto</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Resistência (R) <span id="valR" class="value-display">0.1</span> <small>Ω/m</small></label>
+                <input type="range" id="sldR" min="0" max="10" step="0.1" value="0.1">
+            </div>
+
+            <div class="control-group">
+                <label>Condutância (G) <span id="valG" class="value-display">0.00</span> <small>S/m</small></label>
+                <input type="range" id="sldG" min="0" max="0.05" step="0.001" value="0">
+            </div>
+
+            <div class="control-group">
+                <label>Comp. Linha <span id="valVp" class="value-display">100m</span></label>
+                <div style="font-size:0.7rem; color:#666; margin-top:5px;">
+                    Z0 Calculado: <span id="dispZ0" style="color:white">50.0</span> Ω
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        /**
+         * FDTD Engine em JS Puro
+         * Baseado nas equações dos Telegrafistas
+         */
+        class FDTDEngine {
+            constructor(points, length) {
+                this.Nz = points;
+                this.length = length;
+                this.dz = length / points;
+
+                // Arrays de campo
+                this.V = new Float32Array(points + 1);
+                this.I = new Float32Array(points);
+
+                // Parâmetros Físicos Padrão
+                this.L = 250e-9; // 250 nH/m
+                this.C = 100e-12; // 100 pF/m
+                this.R = 0.1;
+                this.G = 0.0;
+
+                // Parâmetros Derivados
+                this.updateDerivedParams();
+
+                // Carga: 0 (Curto), 1 (Casado), 2 (Aberto)
+                this.loadType = 2;
+            }
+
+            updateDerivedParams() {
+                this.vp = 1 / Math.sqrt(this.L * this.C);
+                this.Z0 = Math.sqrt(this.L / this.C);
+
+                // Estabilidade CFL
+                this.dt = 0.9 * this.dz / this.vp;
+
+                // Coeficientes de atualização
+                // Cv1 = (2C - Gdt)/(2C + Gdt) ...
+                const dt = this.dt;
+                const C = this.C;
+                const G = this.G;
+                const L = this.L;
+                const R = this.R;
+                const dz = this.dz;
+
+                this.Cv1 = (2 * C - G * dt) / (2 * C + G * dt);
+                this.Cv2 = (2 * dt) / ((2 * C + G * dt) * dz);
+
+                this.Ci1 = (2 * L - R * dt) / (2 * L + R * dt);
+                this.Ci2 = (2 * dt) / ((2 * L + R * dt) * dz);
+            }
+
+            injectPulse() {
+                // Injeta um pulso gaussiano na tensão V[0] a V[10]
+                // Na prática, vamos impor no V[1] na próxima iteração como uma "Soft Source" ou somar
+                // Para simplicidade visual, vamos somar um pulso no buffer atual
+                const width = 15;
+                const center = 20;
+                for (let k = 1; k < 50; k++) {
+                    this.V[k] += 15.0 * Math.exp(-Math.pow(k - center, 2) / (2 * width * width));
+                }
+            }
+
+            reset() {
+                this.V.fill(0);
+                this.I.fill(0);
+            }
+
+            step() {
+                const { Nz, Cv1, Cv2, Ci1, Ci2, V, I, loadType, Z0 } = this;
+
+                // 1. Atualizar Tensão (exceto bordas)
+                for (let k = 1; k < Nz; k++) {
+                    V[k] = Cv1 * V[k] - Cv2 * (I[k] - I[k - 1]);
+                }
+
+                // 2. Condições de Contorno
+                // --- Fonte (Esquerda z=0) ---
+                // Curto circuito rígido para reflexão na fonte (source impedancia = 0)
+                V[0] = 0;
+
+                // --- Carga (Direita z=L) ---
+                // V[Nz] e I[Nz-1]
+
+                if (loadType === 2) {
+                    // ABERTO (Open)
+                    // I na ponta é 0. Logo I[Nz-1] (que é i_N-0.5) contribui para V[N]
+                    // Aprox: V[Nz] reflete com Coef +1.
+                    // Pelo telegrafista: I_load = 0.
+                    // V[Nz] = Cv1 * V[Nz] - Cv2 * (0 - I[Nz-1]);
+                    // Simples: V[N] = V[N-1] (derivada nula) ou atualização normal com I_ghost=0
+                    V[Nz] = Cv1 * V[Nz] - Cv2 * (0 - I[Nz - 1]);
+                }
+                else if (loadType === 0) {
+                    // CURTO (Short)
+                    V[Nz] = 0;
+                }
+                else if (loadType === 1) {
+                    // CASADO (Matched)
+                    // Absorvente Mur 1st Order ou I_load = V/Z0
+                    // Usando I_virtual = V[Nz]/Z0
+                    const I_load = V[Nz] / Z0;
+                    V[Nz] = Cv1 * V[Nz] - Cv2 * (I_load - I[Nz - 1]);
+                }
+
+                // 3. Atualizar Corrente
+                for (let k = 0; k < Nz; k++) {
+                    I[k] = Ci1 * I[k] - Ci2 * (V[k + 1] - V[k]);
+                }
+            }
+        }
+
+        // ==========================================
+        // Aplicação & Render
+        // ==========================================
+        const canvas = document.getElementById('scope');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Otimização
+        const engine = new FDTDEngine(400, 100);
+
+        // Elementos de UI
+        const elValR = document.getElementById('valR');
+        const elValG = document.getElementById('valG');
+        const elValZL = document.getElementById('valZL');
+        const elDispZ0 = document.getElementById('dispZ0');
+
+        // Estado de UI
+        let width, height;
+
+        function resize() {
+            width = canvas.parentElement.clientWidth;
+            height = canvas.parentElement.clientHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Loop de Animação
+        function loop() {
+            // Apagar tela com rasto suave (opcional, aqui apagamos tudo para ser crisp)
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, width, height);
+
+            // Grid Linhas
+            ctx.strokeStyle = '#1f2937';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Executar múltiplos passos de física por frame para velocidade visual
+            for (let i = 0; i < 4; i++) engine.step();
+
+            // Desenhar Tensão (Cyan)
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00f3ff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f3ff';
+            ctx.beginPath();
+
+            // Escala Y: Tensão
+            const scaleY = 10;
+            const centerY = height / 2;
+            const dx = width / engine.Nz;
+
+            for (let k = 0; k <= engine.Nz; k++) {
+                const x = k * dx;
+                const y = centerY - engine.V[k] * scaleY;
+                if (k === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Desenhar Corrente (Magenta)
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#ff00ff';
+            ctx.shadowColor = '#ff00ff';
+            ctx.beginPath();
+
+            // Escala Y: Corrente (Amplificada pela Z0 para visualizar comparativamente)
+            const scaleI = scaleY * engine.Z0;
+
+            for (let k = 0; k < engine.Nz; k++) {
+                const x = (k + 0.5) * dx;
+                const y = centerY - engine.I[k] * scaleI;
+                if (k === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Reset shadow
+            ctx.shadowBlur = 0;
+
+            // Info Text
+            ctx.fillStyle = '#444';
+            ctx.font = '10px monospace';
+            ctx.fillText('z=0 (Fonte)', 10, centerY + 20);
+            ctx.fillText('z=L (Carga)', width - 60, centerY + 20);
+
+            requestAnimationFrame(loop);
+        }
+
+        // Event Listeners
+        document.getElementById('btnPulse').addEventListener('click', () => {
+            engine.injectPulse();
+        });
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            engine.reset();
+        });
+
+        document.getElementById('sldR').addEventListener('input', (e) => {
+            engine.R = parseFloat(e.target.value);
+            elValR.innerText = engine.R.toFixed(2);
+            engine.updateDerivedParams();
+        });
+
+        document.getElementById('sldG').addEventListener('input', (e) => {
+            engine.G = parseFloat(e.target.value);
+            elValG.innerText = engine.G.toFixed(3);
+            engine.updateDerivedParams();
+        });
+
+        document.getElementById('sldZL').addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            engine.loadType = val; // 0, 1, 2
+
+            // Mapear labels
+            const labels = ["Curto (0Ω)", "Casado (Z0)", "Aberto (∞)", "Mist"];
+            // Vamos limitar a 3 estados para simplicidade do slider: 0, 1, 2
+            // Se o user arrastar, mapeamos.
+            // O slider HTML vai de 0 a 2.
+
+            if (val === 0) elValZL.innerText = "Curto-Circuito";
+            if (val === 1) elValZL.innerText = "Casada (Z0)";
+            if (val === 2) elValZL.innerText = "Circuito Aberto";
+        });
+
+        // Update UI inicial
+        elDispZ0.innerText = engine.Z0.toFixed(1);
+
+        // Inicia loop
+        loop();
+
+        // Injeta pulso inicial
+        setTimeout(() => engine.injectPulse(), 500);
+
+    </script>
+</body>
+
+</html>
